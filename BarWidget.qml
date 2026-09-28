@@ -247,9 +247,13 @@ BarWidget {
   readonly property bool showEq: showMedia && isPlaying && root.showEqualizer
 
   // Hover transport controls (media only): label + EQ swap for buttons.
+  // Hover may land on the pill itself or on a control band that now covers
+  // it, so both sources count.
   property bool hovered: false
   property bool forceControls: false
-  readonly property bool controlsVisible: root.showHoverControls && (root.hovered || root.forceControls) && root.showMedia && !root.vertical
+  readonly property bool controlsVisible: root.showHoverControls
+    && (root.hovered || root.forceControls || transportControls.bandHovered)
+    && root.showMedia && !root.vertical
 
   function doPrev() {
     if (root.activePlayer && root.activePlayer.canGoPrevious)
@@ -297,7 +301,9 @@ BarWidget {
   }
   readonly property int artW: 20
   readonly property int labelW: Math.min(root.controlsVisible ? 150 : 240, Math.max(40, Math.ceil(labelMetrics.advanceWidth)))
-  readonly property int controlsW: 3 * 26 + 2 * 8
+  // Gapless full-height bands: the reservation must match the module's own
+  // slot width exactly, so derive it instead of restating the number.
+  readonly property int controlsW: transportControls.slotWidth * 3
   readonly property int pillW: 14 + artW + 8 + labelW + (root.controlsVisible ? 8 + controlsW : (root.showEq ? 8 + 16 : 0)) + 14
 
   visible: root.active
@@ -351,6 +357,7 @@ BarWidget {
 
   // ---------- pill ----------
   Rectangle {
+    id: pillBg
     anchors.fill: parent
     anchors.topMargin: 4
     anchors.bottomMargin: 4
@@ -366,6 +373,7 @@ BarWidget {
     // (Shift-click can't raise: the slot's press-grabber accepts every left
     // press for drag-reorder, so press modifiers always read empty here.)
     MouseArea {
+      id: pillMouse
       anchors.fill: parent
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
       hoverEnabled: true
@@ -491,14 +499,18 @@ BarWidget {
       }
 
       TransportControls {
+        id: transportControls
         anchors.verticalCenter: parent.verticalCenter
         visible: root.controlsVisible
+        slotHeight: pillBg.height
         player: root.activePlayer
         playing: root.isPlaying
         onPrevRequested: root.doPrev()
         onToggleRequested: root.togglePlayback()
         onNextRequested: root.doNext()
         onRaiseRequested: root.doRaise()
+        onVolumeUp: root.adjustVolume(0.05)
+        onVolumeDown: root.adjustVolume(-0.05)
       }
     }
   }
