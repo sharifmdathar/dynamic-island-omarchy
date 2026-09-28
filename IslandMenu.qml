@@ -14,6 +14,7 @@ PopupCard {
   property bool showEqualizer: true
   property bool showHoverControls: true
   property bool showNotifications: true
+  property bool showUnreadBadge: true
   property string pinnedPlayer: ""
   property var players: []
 
@@ -30,6 +31,21 @@ PopupCard {
   property double length: 0
   property bool canSeek: false
 
+  // Playback modes. Both rows disappear when the player supports neither.
+  property bool canShuffle: false
+  property bool shuffleOn: false
+  property bool canLoop: false
+  property int loopMode: 0
+  property string loopLabel: "Repeat"
+  readonly property var modeRows: {
+    var rows = []
+    if (menu.canShuffle)
+      rows.push({ label: "Shuffle", checked: menu.shuffleOn, action: "mode|shuffle" })
+    if (menu.canLoop)
+      rows.push({ label: menu.loopLabel, checked: menu.loopMode !== 0, action: "mode|repeat" })
+    return rows
+  }
+
   // Settings sections start collapsed; the header expands them.
   property bool settingsExpanded: false
   onOpenChanged: if (!open) settingsExpanded = false
@@ -37,6 +53,27 @@ PopupCard {
   signal actionRequested(string action)
   signal seekRequested(double position)
   signal raiseRequested()
+
+  // Media chrome (header, seek bar, playback rows) disappears when nothing
+  // is playing, so the card can open onto the inbox alone.
+  property bool hasMedia: true
+
+  // Notification archive: newest-first rows of { file, app, summary, body,
+  // execArgv, timestamp }, read by the island from the service's history.
+  property var inboxRows: []
+  property int unread: 0
+  // Last time the island counted the archive as read; rows after it are new.
+  // real, not int: a millisecond epoch does not fit in 32 bits.
+  property real seenAt: 0
+
+  signal inboxInvoke(int index)
+  signal inboxDismiss(int index)
+  signal inboxClear()
+
+  // Relative ages, refreshed by the island while the card is open. The
+  // clock lives there: this card's default property takes items only.
+  property real nowMs: Date.now()
+  readonly property var inboxList: Array.isArray(menu.inboxRows) ? menu.inboxRows : []
 
   contentWidth: menu.fittedContentWidth(Style.space(240))
   contentHeight: menu.fittedContentHeight(menuColumn.implicitHeight)
@@ -51,6 +88,7 @@ PopupCard {
     { label: "Equalizer animation", checked: menu.showEqualizer, action: "opt|showEqualizer" },
     { label: "Hover controls", checked: menu.showHoverControls, action: "opt|showHoverControls" },
     { label: "Show notifications", checked: menu.showNotifications, action: "opt|showNotifications" },
+    { label: "Unread badge", checked: menu.showUnreadBadge, action: "opt|showUnreadBadge" },
     { label: "Hide when paused", checked: menu.hideWhenPaused, action: "opt|hideWhenPaused" }
   ]
   readonly property var pinnedPlayerRows: [{ label: "Automatic", checked: menu.pinnedPlayer === "", action: "pin|" }].concat(
@@ -142,6 +180,86 @@ PopupCard {
       }
     }
 
+  // Inbox row: sender · summary on one line, age and a dismiss cross on the
+  // right. The row itself runs the notification's own click action.
+  property Component inboxRow: Item {
+      width: parent.width
+      height: 28
+      Rectangle {
+        anchors.fill: parent
+        radius: 6
+        color: Style.hoverFillFor(Color.bar.text, Color.accent)
+        opacity: (inboxRowMouse.containsMouse || inboxCrossMouse.containsMouse) ? 1 : 0
+      }
+      // New since the last look; read rows just sit dimmer.
+      Rectangle {
+        anchors.left: parent.left
+        anchors.leftMargin: 4
+        anchors.verticalCenter: parent.verticalCenter
+        width: 5
+        height: 5
+        radius: 2.5
+        color: Color.accent
+        visible: modelData.timestamp > menu.seenAt
+      }
+      Text {
+        anchors.left: parent.left
+        anchors.leftMargin: 14
+        anchors.right: inboxAge.left
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
+        text: (modelData.app !== "" ? modelData.app + " · " : "") + (modelData.summary !== "" ? modelData.summary : modelData.body)
+        color: Color.bar.text
+        opacity: modelData.timestamp > menu.seenAt ? 1 : 0.62
+        font.family: Style.font.family
+        font.pixelSize: 12
+        textFormat: Text.PlainText
+        elide: Text.ElideRight
+        maximumLineCount: 1
+      }
+      Text {
+        id: inboxAge
+        anchors.right: inboxCross.left
+        anchors.rightMargin: 10
+        anchors.verticalCenter: parent.verticalCenter
+        text: Model.relTime(modelData.timestamp, menu.nowMs)
+        color: Color.bar.text
+        opacity: 0.45
+        font.family: Style.font.family
+        font.pixelSize: 10
+        textFormat: Text.PlainText
+      }
+      Text {
+        id: inboxCross
+        anchors.right: parent.right
+        anchors.rightMargin: 12
+        anchors.verticalCenter: parent.verticalCenter
+        text: "✕"
+        color: Color.bar.text
+        opacity: inboxCrossMouse.containsMouse ? 1 : 0.45
+        font.pixelSize: 11
+      }
+      MouseArea {
+        id: inboxRowMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: menu.inboxInvoke(modelIndex)
+      }
+      // Declared after the row so the cross keeps the strip it covers.
+      MouseArea {
+        id: inboxCrossMouse
+        anchors.right: parent.right
+        anchors.rightMargin: 6
+        anchors.verticalCenter: parent.verticalCenter
+        width: 22
+        height: parent.height
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: menu.inboxDismiss(modelIndex)
+      }
+    }
+
   Column {
     id: menuColumn
     anchors.fill: parent
@@ -153,6 +271,7 @@ PopupCard {
     Item {
       width: parent.width
       height: 68
+      visible: menu.hasMedia
       Rectangle {
         anchors.fill: parent
         radius: 6
@@ -247,7 +366,7 @@ PopupCard {
       id: seekBox
       width: parent.width
       height: 26
-      visible: menu.canSeek && menu.length > 0
+      visible: menu.hasMedia && menu.canSeek && menu.length > 0
       property bool scrubbing: false
       property double scrubPos: 0
       readonly property double shownPos: scrubbing ? scrubPos : Math.max(0, Math.min(menu.position, menu.length))
@@ -340,6 +459,75 @@ PopupCard {
           font.pixelSize: 10
         }
       }
+    }
+
+    // Playback modes: shuffle and repeat toggles straight under the seek
+    // bar. Tapping one keeps the menu open so the row flips in place.
+    Column {
+      width: parent.width
+      spacing: 2
+      visible: menu.hasMedia && menu.modeRows.length > 0
+      Rectangle {
+        width: parent.width
+        height: 1
+        color: Color.bar.text
+        opacity: 0.15
+      }
+      Repeater { model: ["Playback"]; delegate: menuHeader }
+      Repeater { model: menu.modeRows; delegate: menuRow }
+    }
+
+    // Notification archive, newest first. A row runs the notification's own
+    // click action and leaves the archive; the cross drops it without
+    // acting. Capped so a full archive cannot push the card off screen.
+    Column {
+      width: parent.width
+      spacing: 2
+      visible: menu.showNotifications && menu.inboxList.length > 0
+      Rectangle {
+        width: parent.width
+        height: 1
+        color: Color.bar.text
+        opacity: 0.15
+      }
+      Item {
+        width: parent.width
+        height: 20
+        Text {
+          anchors.left: parent.left
+          anchors.leftMargin: 12
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Notifications" + (menu.unread > 0 ? " · " + menu.unread + " new" : "")
+          color: Color.bar.text
+          opacity: 0.55
+          font.family: Style.font.family
+          font.pixelSize: 10
+          font.weight: Font.Medium
+          textFormat: Text.PlainText
+        }
+        Text {
+          anchors.right: parent.right
+          anchors.rightMargin: 12
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Clear all"
+          color: Color.accent
+          opacity: inboxClearMouse.containsMouse ? 1 : 0.7
+          font.family: Style.font.family
+          font.pixelSize: 10
+          textFormat: Text.PlainText
+        }
+        MouseArea {
+          id: inboxClearMouse
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          width: 64
+          height: 20
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: menu.inboxClear()
+        }
+      }
+      Repeater { model: menu.inboxList.slice(0, 8); delegate: menu.inboxRow }
     }
 
     // Explicit Settings button; expands/collapses the sections below.
