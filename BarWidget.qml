@@ -148,6 +148,9 @@ BarWidget {
       base = Math.min(base, root.trackLength)
     return Math.max(0, base)
   }
+  readonly property real mediaProgressRatio: (root.hasProgress && root.trackLength > 0)
+    ? Math.max(0.0, Math.min(1.0, root.livePosition / root.trackLength))
+    : 0.0
   function reanchor() {
     root.anchorPos = root.trackPosition
     root.anchorAt = Date.now()
@@ -214,6 +217,7 @@ BarWidget {
   readonly property bool hideWhenPaused: root.setting("hideWhenPaused", false)
   readonly property bool showEqualizer: root.setting("showEqualizer", true)
   readonly property bool showHoverControls: root.setting("showHoverControls", true)
+  readonly property bool showProgressFill: root.setting("showProgressFill", true)
   readonly property bool showNotifications: root.setting("showNotifications", true)
   // The pill collapses to nothing when idle; this is what lets the archive
   // keep it open on its own, so it gets its own switch.
@@ -262,6 +266,7 @@ BarWidget {
       if (arg === "hideWhenPaused") root.setOption(arg, !root.hideWhenPaused)
       else if (arg === "showEqualizer") root.setOption(arg, !root.showEqualizer)
       else if (arg === "showHoverControls") root.setOption(arg, !root.showHoverControls)
+      else if (arg === "showProgressFill") root.setOption(arg, !root.showProgressFill)
       else if (arg === "showNotifications") root.setOption(arg, !root.showNotifications)
       else if (arg === "showUnreadBadge") root.setOption(arg, !root.showUnreadBadge)
     }
@@ -688,6 +693,22 @@ BarWidget {
     border.width: 1
     visible: root.active
 
+    // Subtle background progress fill for active media
+    Rectangle {
+      id: mediaProgressFill
+      anchors.fill: parent
+      anchors.margins: 1
+      radius: Math.max(0, pillBg.radius - 1)
+      visible: !root.vertical && root.showMedia && root.showProgressFill && root.mediaProgressRatio > 0
+      gradient: Gradient {
+        orientation: Gradient.Horizontal
+        GradientStop { position: 0.0; color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.20) }
+        GradientStop { position: root.mediaProgressRatio; color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.20) }
+        GradientStop { position: Math.min(1.0, root.mediaProgressRatio + 0.001); color: "transparent" }
+        GradientStop { position: 1.0; color: "transparent" }
+      }
+    }
+
     // Hover detection for the transport controls (bottom of stack; buttons sit above).
     // Left click toggles playback, middle click raises the player,
     // right click opens the options menu.
@@ -870,6 +891,7 @@ BarWidget {
     hideWhenPaused: root.hideWhenPaused
     showEqualizer: root.showEqualizer
     showHoverControls: root.showHoverControls
+    showProgressFill: root.showProgressFill
     showNotifications: root.showNotifications
     showUnreadBadge: root.showUnreadBadge
     pinnedPlayer: root.pinnedPlayer

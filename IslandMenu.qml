@@ -13,6 +13,7 @@ PopupCard {
   property bool hideWhenPaused: false
   property bool showEqualizer: true
   property bool showHoverControls: true
+  property bool showProgressFill: true
   property bool showNotifications: true
   property bool showUnreadBadge: true
   property string pinnedPlayer: ""
@@ -87,6 +88,7 @@ PopupCard {
   readonly property var behaviorRows: [
     { label: "Equalizer animation", checked: menu.showEqualizer, action: "opt|showEqualizer" },
     { label: "Hover controls", checked: menu.showHoverControls, action: "opt|showHoverControls" },
+    { label: "Progress fill", checked: menu.showProgressFill, action: "opt|showProgressFill" },
     { label: "Show notifications", checked: menu.showNotifications, action: "opt|showNotifications" },
     { label: "Unread badge", checked: menu.showUnreadBadge, action: "opt|showUnreadBadge" },
     { label: "Hide when paused", checked: menu.hideWhenPaused, action: "opt|hideWhenPaused" }

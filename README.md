@@ -91,8 +91,8 @@ flips in place. Both rows disappear for players that support neither.
 **Behavior** — `Hide when paused` collapses the pill while paused
 (resume playback, or `omarchy-shell island setOption hideWhenPaused false`,
 to get the menu back), plus toggles for the equalizer animation, hover
-transport controls, notification previews, and the unread badge (see
-below).
+transport controls, progress fill across the pill, notification previews,
+and the unread badge (see below).
 
 **Player** — `Automatic` follows the most recently playing source; picking
 a listed source pins the island to it until that source goes quiet.
