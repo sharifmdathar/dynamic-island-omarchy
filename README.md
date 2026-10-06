@@ -112,6 +112,11 @@ lightweight inbox:
 - Unread entries keep the pill open when nothing is playing — it reads
   `3 unread` — and drop a dot on the pill's corner when media owns the
   label. Turn this off with the `Unread badge` toggle.
+- **Hover a row** to unfold it: the body wraps out under the headline so
+  the whole message is readable in place, and the row folds back when the
+  pointer leaves. The list slides to make room — the row's own top edge
+  never moves, so the cursor stays inside it. Entries with nothing hidden
+  (no body, headline not clipped) stay one line.
 - **Click a row** to run the notification's own action (the `--exec` the
   sender attached) and clear it. **Click ✕** to clear without acting.
   **Clear all** empties the archive.

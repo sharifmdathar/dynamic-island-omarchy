@@ -182,81 +182,153 @@ PopupCard {
 
   // Inbox row: sender · summary on one line, age and a dismiss cross on the
   // right. The row itself runs the notification's own click action.
+  //
+  // Hovering unfolds the row in place: the body wraps out under the headline
+  // so a long notification is readable without leaving the card. Only the
+  // bottom edge moves — the row's top stays put, which is what keeps the
+  // cursor inside it while it grows and the rows below slide down.
   property Component inboxRow: Item {
+      id: inboxRowItem
       width: parent.width
-      height: 28
+      // Two independent hover sources: the row's MouseArea (which already
+      // drives the selection highlight) and a passive HoverHandler, so the
+      // unfold still works where a MouseArea's hover gets eaten by a sibling.
+      readonly property bool rowHovered: inboxRowMouse.containsMouse || rowHover.hovered
+      // Something the one-line form is hiding: a body to unfold, or a headline
+      // the row is currently eliding. Rows with neither stay one line high.
+      readonly property bool hasMore: String(modelData.body || "") !== ""
+        || (headlineText.width > 0 && headlineMetrics.advanceWidth > headlineText.width + 1)
+      readonly property bool expanded: rowHovered && hasMore
+      // contentHeight is the height of the *wrapped* layout; implicitHeight is
+      // measured against the unwrapped natural width, so it reports one line
+      // for a paragraph. Floored at one line and capped at eight so a runaway
+      // notification cannot push the card off screen; `elide` marks the cut.
+      readonly property real bodyHeight: Math.max(14, Math.min(bodyText.contentHeight, 8 * 15))
+      height: expanded ? Math.ceil(32 + bodyHeight) : 28
+      clip: true
+
+      Behavior on height {
+        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+      }
+
       Rectangle {
         anchors.fill: parent
         radius: 6
         color: Style.hoverFillFor(Color.bar.text, Color.accent)
         opacity: (inboxRowMouse.containsMouse || inboxCrossMouse.containsMouse) ? 1 : 0
       }
-      // New since the last look; read rows just sit dimmer.
+      // New since the last look; read rows just sit dimmer. Pinned to the
+      // headline line so an unfolded row does not drag it to its middle.
       Rectangle {
         anchors.left: parent.left
         anchors.leftMargin: 4
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 11
         width: 5
         height: 5
         radius: 2.5
         color: Color.accent
         visible: modelData.timestamp > menu.seenAt
       }
-      Text {
+      // Headline line: app · summary, age, dismiss cross — one fixed band at
+      // the top of the row, so all three hold their place as it unfolds.
+      Item {
+        id: headlineLine
         anchors.left: parent.left
         anchors.leftMargin: 14
-        anchors.right: inboxAge.left
+        anchors.right: parent.right
         anchors.rightMargin: 8
-        anchors.verticalCenter: parent.verticalCenter
-        text: (modelData.app !== "" ? modelData.app + " · " : "") + (modelData.summary !== "" ? modelData.summary : modelData.body)
+        anchors.top: parent.top
+        anchors.topMargin: 6
+        height: 16
+        Text {
+          id: headlineText
+          anchors.left: parent.left
+          anchors.right: inboxAge.left
+          anchors.rightMargin: 8
+          anchors.verticalCenter: parent.verticalCenter
+          text: (modelData.app !== "" ? modelData.app + " · " : "") + (modelData.summary !== "" ? modelData.summary : modelData.body)
+          color: Color.bar.text
+          opacity: modelData.timestamp > menu.seenAt ? 1 : 0.62
+          font.family: Style.font.family
+          font.pixelSize: 12
+          textFormat: Text.PlainText
+          elide: Text.ElideRight
+          maximumLineCount: 1
+        }
+        Text {
+          id: inboxAge
+          anchors.right: inboxCross.left
+          anchors.rightMargin: 10
+          anchors.verticalCenter: parent.verticalCenter
+          text: Model.relTime(modelData.timestamp, menu.nowMs)
+          color: Color.bar.text
+          opacity: 0.45
+          font.family: Style.font.family
+          font.pixelSize: 10
+          textFormat: Text.PlainText
+        }
+        Text {
+          id: inboxCross
+          anchors.right: parent.right
+          anchors.rightMargin: 4
+          anchors.verticalCenter: parent.verticalCenter
+          text: "✕"
+          color: Color.bar.text
+          opacity: inboxCrossMouse.containsMouse ? 1 : 0.45
+          font.pixelSize: 11
+        }
+      }
+      // The notification body, unfolded only while expanded.
+      Text {
+        id: bodyText
+        anchors.left: parent.left
+        anchors.leftMargin: 14
+        anchors.right: parent.right
+        anchors.rightMargin: 14
+        anchors.top: headlineLine.bottom
+        anchors.topMargin: 2
+        text: modelData.body
+        visible: inboxRowItem.expanded
         color: Color.bar.text
-        opacity: modelData.timestamp > menu.seenAt ? 1 : 0.62
+        opacity: 0.72
+        font.family: Style.font.family
+        font.pixelSize: 11
+        textFormat: Text.PlainText
+        wrapMode: Text.WordWrap
+        maximumLineCount: 8
+        elide: Text.ElideRight
+      }
+      // Width of the headline unwrapped, for the hasMore test. Reading it off
+      // headlineText would flip the moment the row unfolds and that text
+      // re-lays-out, so measure the string separately.
+      TextMetrics {
+        id: headlineMetrics
         font.family: Style.font.family
         font.pixelSize: 12
-        textFormat: Text.PlainText
-        elide: Text.ElideRight
-        maximumLineCount: 1
+        text: headlineText.text
       }
-      Text {
-        id: inboxAge
-        anchors.right: inboxCross.left
-        anchors.rightMargin: 10
-        anchors.verticalCenter: parent.verticalCenter
-        text: Model.relTime(modelData.timestamp, menu.nowMs)
-        color: Color.bar.text
-        opacity: 0.45
-        font.family: Style.font.family
-        font.pixelSize: 10
-        textFormat: Text.PlainText
-      }
-      Text {
-        id: inboxCross
-        anchors.right: parent.right
-        anchors.rightMargin: 12
-        anchors.verticalCenter: parent.verticalCenter
-        text: "✕"
-        color: Color.bar.text
-        opacity: inboxCrossMouse.containsMouse ? 1 : 0.45
-        font.pixelSize: 11
-      }
+      // Passive: keeps the unfold working even if the MouseArea's hover is
+      // taken by the dismiss strip. Never consumes clicks.
+      HoverHandler { id: rowHover }
       MouseArea {
         id: inboxRowMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: menu.inboxInvoke(modelIndex)
+        onClicked: menu.inboxInvoke(index)
       }
       // Declared after the row so the cross keeps the strip it covers.
       MouseArea {
         id: inboxCrossMouse
         anchors.right: parent.right
         anchors.rightMargin: 6
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.top: parent.top
         width: 22
-        height: parent.height
+        height: 28
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: menu.inboxDismiss(modelIndex)
+        onClicked: menu.inboxDismiss(index)
       }
     }
 

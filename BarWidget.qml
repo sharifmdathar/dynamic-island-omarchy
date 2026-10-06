@@ -382,7 +382,13 @@ BarWidget {
   }
 
   function applyNotifDump(raw) {
-    root.inboxRows = Model.parseInboxRows(raw)
+    // The archive is re-read on a timer and on every kick, but its contents
+    // only change now and then. Handing the Repeater a fresh array anyway
+    // would rebuild every inbox row, and a row that is unfolding under the
+    // cursor would be destroyed mid-hover, so publish only real changes.
+    var rows = Model.parseInboxRows(raw)
+    if (JSON.stringify(rows) !== JSON.stringify(root.inboxRows))
+      root.inboxRows = rows
     var live = Model.parseLiveRows(raw)
     root.livePopup = live.length > 0 ? live[0] : null
     // An archive that predates the badge is not "unread": baseline it once so
