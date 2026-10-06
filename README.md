@@ -17,7 +17,7 @@ the bar's center section next to the clock.
 
 ## Preview 
 
-### (Click to watch full demo on YouTube)
+### (Click to watch mini demo on YouTube)
 
 [![Watch the demo](./preview.png)](https://youtu.be/VII630kGqz8)
 
@@ -135,6 +135,7 @@ copies that share its stem, the same cleanup the daemon itself does.
 
 All colors are theme-aware: pill and text follow `Color.bar`, selection
 chrome follows the shared `Style` hover/selected fills with `Color.accent`.
+The progress fill now also uses `Color.accent`, giving a clearer visual cue.
 No hardcoded colors — switching Omarchy themes (`omarchy theme set …`)
 restyles the widget with the bar.
 
